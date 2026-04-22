@@ -1,227 +1,367 @@
 import sys
-import math
-import getpass
-import os
 import json
+import math
+import time
+import getpass
+from decimal import Decimal, getcontext
+from datetime import datetime
+from PyQt5.QtNetwork import QNetworkCookie
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
+                             QWidget, QLabel, QLineEdit, QPushButton, QTextEdit, 
+                             QCheckBox, QSplitter, QFrame, QTableWidgetItem, 
+                             QAbstractItemView, QTableWidget, QHeaderView, QProgressBar)
+from PyQt5.QtChart import QChart, QChartView, QLineSeries, QValueAxis
+from PyQt5.QtCore import QTimer, QUrl, Qt
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineProfile
+from PyQt5.QtGui import QPainter, QPen, QColor
+import os
+import logging
 
-from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtCore import QUrl, QTimer
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-audio-output"
+logging.getLogger("PyQt5").setLevel(logging.CRITICAL)
 
+u = input("Enter username: ")
+p = getpass.getpass("Enter password: ")
+# Set precision
+getcontext().prec = 20
 
-os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--log-level=3 --disable-gpu"
-
-# --- CONFIG ---
-USERNAME = input("Enter username: ")
-PASSWORD = getpass.getpass("Enter password: ")
+# --- CONFIGURATION ---
 URL = "https://just-dice.com"
-
 STATE_FILE = "bot_state.json"
 
-
-# -------------------------------
-# PERSISTENCE HELPERS
-# -------------------------------
-def save_state(data):
-    try:
-        with open(STATE_FILE, "w") as f:
-            json.dump(data, f)
-    except Exception as e:
-        print(f"⚠️ Failed to save state: {e}")
-
-
-def load_state():
-    try:
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return None
-
-
-# -------------------------------
-class RunBot:
+class BotEngine(QMainWindow):
     def __init__(self):
-        self.app = QApplication(sys.argv)
+        super().__init__()
+        self.setWindowTitle("JustDice Native Bot (Infinite Flow)")
+        self.resize(1024, 768)
 
-        self.view = QWebEngineView()
+        # --- INTERNAL STATE ---
+        self.is_running = False
+        self.last_balance = Decimal("0")
+        self.initial_balance = Decimal("0")
+        self.tracked_balance = Decimal("0")
+        self.next_compound = Decimal("0")
+        self.last_change_time = 0  # Watchdog timer
+        
+        # Strategy Vars
+        self.cat = Decimal("0")
+        self.felix = Decimal("0")
+        self.orgy = Decimal("0")
+        self.fart = 1
+        self.tabby = Decimal("0")
+        self.tens = Decimal("0")
+        self.sevens = Decimal("0")
+        self.eights = Decimal("0")
+        self.betfired = True
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.view)
+        # Wipe everything
+        # --- UI SETUP ---
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QHBoxLayout(central_widget)
 
-        container = QWidget()
-        container.setLayout(layout)
-        container.resize(1920, 1080)
-        container.hide()
+        # LEFT PANEL: Controls
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        # right PANEL: Controls
+        
+                
+        self.lbl_balance = QLabel("Balance: 0.00000000")
+        self.lbl_profit = QLabel("Life Profit: 0.00000000")
+        self.lbl_bet = QLabel("Next Bet: 0.00000000")
+        self.lbl_compound = QLabel("Compound Goal: 0.00000000")
+        
+        self.log_box = QTextEdit()
+        self.log_box.setReadOnly(True)
+        self.log_box.setStyleSheet("background: #111; color: #0f0; font-family: monospace; font-size: 11px;")
 
-        self.view.load(QUrl(URL))
-        self.view.hide()
 
-        self.initialized = False
+        # Darn: Browser
+        self.browser_view = QWebEngineView()
+        self.profile = QWebEngineProfile.defaultProfile()
+        self.profile.setPersistentCookiesPolicy(QWebEngineProfile.NoPersistentCookies)
 
-        print("✅ Page loaded")
-        print("⏳ Waiting 35 seconds for full render...")
-        QTimer.singleShot(35000, self.handle_popup)
+        # Wipe everything 
+        self.last_activity_time = time.time()
+        
+        # --- TIMERS ---
+        self.heartbeat = QTimer()
+        self.heartbeat.setInterval(1) # 1ms Tick
+        self.heartbeat.timeout.connect(self.tick)
 
-        self.app.exec()
+        self.log("System initialized. Loading Just-Dice...")
+        self.browser_view.setUrl(QUrl(URL))
+        QTimer.singleShot(35000, self.on_load_finished)
 
-    # -------------------------------
-    def handle_popup(self):
-        print("🔧 Closing popup...")
-        self.view.page().runJavaScript(
-            'var c=document.querySelector(".fancybox-close"); if(c){c.click();}'
+    def log(self, msg):
+        ts = datetime.now().strftime('%H:%M:%S')
+        return print(f"[{ts}] {msg}")
+
+    def on_load_finished(self):
+        self.log("✅ Page Loaded removing popup if there.")
+        try:
+           self.browser_view.page().runJavaScript("document.querySelectorAll('.fancybox-overlay').forEach(e => e.remove());")
+        except: pass
+        QTimer.singleShot(2000, self.kjool_look)
+        
+
+    def kjool_look(self):
+        print("please wait")
+        QTimer.singleShot(12000, self.inject_login)
+
+    def inject_login(self):
+        if not u or not p: return
+
+        js = f"""
+        (function() {{
+            var usen = document.getElementById('myuser');
+            var pasd = document.getElementById('mypass');
+            var btn = document.getElementById('myok');
+            var links = document.getElementsByTagName('a');
+            for(var i=0; i<links.length; i++) {{
+                if(links[i].innerText.includes('Account')) {{
+                    links[i].click();
+                    break;
+                }}
+            }}
+            setTimeout(() => {{
+                if(usen && pasd) {{
+                    usen.value = '{u}';
+                    pasd.value = '{p}';
+                    if(btn) btn.click();
+                }}
+            }}, 1500);
+        }})();
+        """
+        self.browser_view.page().runJavaScript(js)
+        self.log("⏳ Logging in please wait...")
+        QTimer.singleShot(15000, self.check_ready)
+
+    def check_ready(self):
+        self.browser_view.page().runJavaScript(
+            "document.getElementById('pct_balance') ? document.getElementById('pct_balance').value : null;",
+            self.verify_login
         )
 
-        self.view.page().runJavaScript("""
-        var links = document.querySelectorAll("a");
-        for (let i = 0; i < links.length; i++) {
-            if (links[i].innerText.trim() === "Account") {
-               links[i].click();
-               break;
-             }
-         }
-         """)
-
-        QTimer.singleShot(5000, self.do_login)
-
-    def do_login(self):
-        print("🔐 Logging in...")
-
-        import json
-        safe_user = json.dumps(USERNAME)
-        safe_pass = json.dumps(PASSWORD)
-
-        self.view.page().runJavaScript(f'document.querySelector("#myuser").value={safe_user};')
-        self.view.page().runJavaScript(f'document.querySelector("#mypass").value={safe_pass};')
-
-        self.run_js_click("#myok")
-
-        print("⏳ Waiting for login...")
-        QTimer.singleShot(20000, self.start_betting)
-
-    # -------------------------------
-    def start_betting(self):
-        print("▶ Starting betting loop...")
-
-        self.state = load_state()
-
-        self.get_value("#pct_balance", self.init_betting)
-
-    def init_betting(self, raw_bal):
-        try:
-            whiskers = float(raw_bal.replace(',', ''))
-        except:
-            print("❌ Failed to read balance")
-            return
-
-        self.whiskers = whiskers
-        self.tabby = round(whiskers / 144000, 8)
-        self.purr = 49.5
-        self.tens = self.tabby * 10
-        self.sevens = self.tabby * 6.9
-        self.eights = self.tabby * 7.9
-        self.mighty = math.floor(whiskers / self.tens) * self.tens
-
-        if self.state:
-            print("♻️ Restoring previous state...")
-            self.cat = self.state.get("cat", self.tabby)
-            self.felix = self.state.get("felix", self.mighty)
-            self.orgy = self.state.get("orgy", self.mighty)
-            self.shadow = self.state.get("shadow", whiskers)
-            self.smokey = self.state.get("smokey", whiskers)
-            self.fart = self.state.get("fart", 1)
+    def verify_login(self, val):
+        if val:
+            self.log(f"✅ Logged in! Balance: {val}")
+            self.setup_state(Decimal(val))
+            self.last_activity_time = time.time()
+            self.toggle_engine()
         else:
-            print("🆕 Starting fresh state...")
+            self.log("❌ Login failed or slow load. Click Inject again.")
+
+    # ---------------------------------------------------------------------------
+    # STATE & MATH
+    # ---------------------------------------------------------------------------
+    def setup_state(self, real_bal):
+        self.calculate_units(real_bal)
+        self.state_data = self.load_state_file()
+        
+        if self.state_data:
+            self.log("📂 Resuming from file...")
+            self.cat = self.state_data.get("cat", self.tabby)
+            self.felix = self.state_data.get("felix", Decimal(0))
+            self.orgy = self.state_data.get("orgy", Decimal(0))
+            self.fart = int(self.state_data.get("fart", 1))
+            self.initial_balance = self.state_data.get("initial_balance", real_bal)
+            self.next_compound = self.state_data.get("next_compound", real_bal * Decimal("2.4"))
+            
+            last_saved = self.state_data.get("last_balance", real_bal)
+            drift = real_bal - last_saved
+            self.tracked_balance = self.state_data.get("tracked_balance", real_bal) + drift
+            self.log(f"⚖️ Drift Corrected: {drift:.8f}")
+        else:
+            self.log("🆕 Fresh Start.")
             self.cat = self.tabby
             self.fart = 1
-            self.shadow = whiskers
-            self.smokey = whiskers
-            self.felix = float(self.mighty)
-            self.orgy = float(self.mighty)
+            self.tracked_balance = self.initial_balance = real_bal
+            self.next_compound = real_bal * Decimal("2.4")
+            mighty = ((math.floor(real_bal / self.tens)) * self.tens)
+            self.felix = self.orgy = mighty
 
-        print(f"🐾 Balance: {whiskers:.8f} | Bet: {self.cat:.8f}")
-
-        self.run_js_click("#b_min")
-
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.bet_step)
-        self.timer.start(200)
-
-    # -------------------------------
-    def bet_step(self):
-        self.get_value("#pct_balance", self.process_bet)
-
-    def process_bet(self, curr_bal_str):
+        self.last_balance = real_bal
+        self.update_ui_stats()
+   
+  
+    def load_state_file(self):
         try:
-            actual_bal = float(curr_bal_str.replace(',', ''))
+            with open(STATE_FILE, "r") as f:
+                data = json.load(f)
+                keys = ["cat", "felix", "orgy", "tracked_balance", "initial_balance", "last_balance", "next_compound"]
+                for k in keys:
+                    if k in data: data[k] = Decimal(data[k])
+                return data
+        except: return None
 
-            if ((self.shadow == actual_bal) or (self.smokey == actual_bal)):
+    def save_state(self):
+        try:
+            data = {
+                "cat": self.cat, "felix": self.felix, "orgy": self.orgy, "fart": self.fart,
+                "tracked_balance": self.tracked_balance, "initial_balance": self.initial_balance,
+                "last_balance": self.last_balance, "next_compound": self.next_compound
+            }
+            serializable = {k: str(v) if isinstance(v, Decimal) else v for k, v in data.items()}
+            with open(STATE_FILE, "w") as f:
+                json.dump(serializable, f)
+        except: pass
 
-                current_jasper = actual_bal
-                self.mighty = math.floor(current_jasper / self.tens) * self.tens
+    def calculate_units(self, balance):
+        if balance == 0: return
+        self.tabby = (balance / Decimal("144000")).quantize(Decimal("1.00000000"))
+        self.tens = (self.tabby * Decimal("10.0"))
+        self.sevens = (self.tabby * Decimal("6.9"))
+        self.eights = (self.tabby * Decimal("7.9"))
 
-                if current_jasper >= (self.orgy + (self.tens * self.fart)):
-                    self.cat = float(self.tabby)
-                    self.fart = 1
-                    self.felix = float(self.mighty)
-                    self.orgy = float(self.mighty)
+    # ---------------------------------------------------------------------------
+    # ENGINE CONTROL
+    # ---------------------------------------------------------------------------
+    def toggle_engine(self):
+            self.browser_view.page().runJavaScript(
+                "document.getElementById('pct_balance').value", 
+                self.engage_engine
+            )
 
-                if (current_jasper > (self.mighty + self.sevens)) and (current_jasper < (self.mighty + self.eights)) and current_jasper > self.felix:
-                    self.cat *= 2
-                    self.felix = float(current_jasper)
+    def engage_engine(self, bal_str):
+        if not bal_str: return
 
-                if (current_jasper > (self.mighty + self.sevens)) and (current_jasper < (self.mighty + self.eights)) and current_jasper < self.felix:
-                    self.cat *= 2
-                    self.fart = 0
-                    self.felix = float(current_jasper)
+        try:
+            fresh_balance = Decimal(bal_str)
+        except: return
 
-                print(f"📈 Bal: {actual_bal:.8f} | Profit: {actual_bal - self.whiskers:.8f} | Bet: {self.cat:.8f}")
+        # FORCE SYNC
+        if fresh_balance != self.last_balance:
+            self.log(f"⚖️ Sync: {self.last_balance} -> {fresh_balance}")
+            self.last_balance = fresh_balance
+            if self.state_data:
+                drift = fresh_balance - self.state_data.get("last_balance", fresh_balance)
+                self.tracked_balance = self.state_data.get("tracked_balance", fresh_balance) + drift
 
-                self.set_value("#pct_chance", self.purr)
-                self.set_value("#pct_bet", f"{self.cat:.8f}")
+        if self.cat == 0:
+            self.calculate_units(fresh_balance)
+            self.cat = self.tabby
 
-                self.shadow = round(current_jasper + self.cat, 8)
-                self.smokey = round(current_jasper - self.cat, 8)
+        self.is_running = True
+        self.log(f"🚀 STARTED. Base: {self.cat:.8f}")
+        
+        # Start Timer
+        self.last_change_time = time.time()
+        self.last_activity_time = time.time()
+        self.fire_bet()
+        self.heartbeat.start()
 
-                # 💾 SAVE STATE HERE
-                save_state({
-                    "cat": self.cat,
-                    "felix": self.felix,
-                    "orgy": self.orgy,
-                    "shadow": self.shadow,
-                    "smokey": self.smokey,
-                    "fart": self.fart
-                })
+    # ---------------------------------------------------------------------------
+    # CORE LOOP WITH KICKSTART
+    # ---------------------------------------------------------------------------
+    def tick(self):
+        self.browser_view.page().runJavaScript(
+            "document.getElementById('pct_balance').value", 
+            self.process_tick
+        )
+ 
+    def lol_poop(self):
+        self.log("please wait for reconnect reloading browser dont worry will reconnect...")
+        self.browser_view.reload()
+        QTimer.singleShot(35000, self.devils_pooped)
+    
+    def devils_pooped(self):
+        self.log("please wait for reconnect injecting login as why your login stays there dont worry will reconnect...")
+        self.inject_login()
 
-                self.run_js_click("#a_lo")
+    def process_tick(self, bal_str):
+        if not bal_str or not self.is_running: return
+        try:
+            current_real = Decimal(bal_str)
+        except: return
 
-        except Exception as e:
-            print(f"⚠️ Loop error: {e}")
+        if time.time() - self.last_activity_time > 10:
+            self.last_activity_time = time.time()
+            self.lol_poop()
+            
+        # CASE 1: BALANCE CHANGED (Bet Processed)
+        if current_real != self.last_balance:
+            self.betfired = True
+            self.last_change_time = time.time() # Reset Stuck Timer
+            self.last_activity_time = time.time()
+            
+            delta = current_real - self.last_balance
 
-    # -------------------------------
-    def get_value(self, selector, callback):
-        script = f'''
-        (function() {{
-            let el = document.querySelector("{selector}");
-            return el ? el.value : "";
-        }})();
-        '''
-        self.view.page().runJavaScript(script, callback)
+            # CALL THE CHART HERE
 
-    def set_value(self, selector, value):
-        script = f'''
-        var el = document.querySelector("{selector}");
-        if(el) el.value = "{value}";
-        '''
-        self.view.page().runJavaScript(script)
+            # Hacker Guard
+            if abs(delta) > (self.cat * Decimal("1.01")):
+                self.log(f"🚨 SECURITY: Delta {delta} > Bet {self.cat}")
+                self.heartbeat.stop()
+                sys.exit()
+                return
 
-    def run_js_click(self, selector):
-        script = f'''
-        var el = document.querySelector("{selector}");
-        if(el) el.click();
-        '''
-        self.view.page().runJavaScript(script)
+            self.tracked_balance += delta
+            self.last_balance = current_real
+            
+            # Compounding
+            if self.tracked_balance >= self.next_compound:
+                self.log("💎 COMPOUND MILESTONE!")
+                self.calculate_units(self.tracked_balance)
+                self.next_compound = self.tracked_balance * Decimal("2.4")
+                self.cat = self.tabby
 
+            # Strategy
+            mighty = ((math.floor(self.tracked_balance / self.tens)) * self.tens)
+            
+            if self.tracked_balance >= (self.orgy + (self.tens * self.fart)):
+                self.cat = self.tabby
+                self.fart = 1
+                self.felix = mighty
+                self.orgy = mighty
 
-# -------------------------------
+            if (self.tracked_balance > (mighty + self.sevens)) and (self.tracked_balance < (mighty + self.eights)) and self.tracked_balance < self.felix:
+                 self.fart = 0
+                 self.cat *= 2
+                 self.felix = self.tracked_balance
+
+            if (self.tracked_balance > (mighty + self.sevens)) and (self.tracked_balance < (mighty + self.eights)) and self.tracked_balance > self.felix:
+                 self.cat *= 2
+                 self.felix = self.tracked_balance
+            
+            # LOG & UI
+            sess = self.tracked_balance - self.initial_balance
+            self.log(f"💰 {current_real:.8f} | D: {delta:+.8f} | Session: {sess:+.8f}")
+            self.update_ui_stats()
+            self.save_state()
+            
+            # NEXT BET
+            self.fire_bet()
+
+        # CASE 2: STUCK CHECK
+        else:
+            # If 4 seconds pass with no balance change, Kickstart
+            if time.time() - self.last_change_time > 0.01:
+                self.fire_bet()
+                self.last_change_time = time.time() 
+
+                
+    def fire_bet(self):
+      if self.betfired:
+        js = f"""
+        var chance = document.getElementById('pct_chance');
+        var bet = document.getElementById('pct_bet');
+        var btn = document.getElementById('a_lo');
+        if(chance) chance.value = '49.5';
+        if(bet) bet.value = '{self.cat:.8f}';
+        if(btn) btn.click();
+        """
+        self.browser_view.page().runJavaScript(js)
+        self.betfired = False
+
+    def update_ui_stats(self):
+        self.lbl_balance.setText(f"Bal: {self.last_balance:.8f}")
+        self.lbl_profit.setText(f"Life Profit: {(self.tracked_balance - self.initial_balance):.8f}")
+        self.lbl_bet.setText(f"Next Bet: {self.cat:.8f}")
+        self.lbl_compound.setText(f"Goal: {self.next_compound:.8f}")
+
 if __name__ == "__main__":
-    RunBot()
+    app = QApplication(sys.argv)
+    bot = BotEngine()
+    bot.hide()
+    sys.exit(app.exec_())
