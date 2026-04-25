@@ -107,6 +107,7 @@ class BotEngine(QMainWindow):
 
     def kjool_look(self):
         print("please wait")
+        self.betfired = False
         QTimer.singleShot(12000, self.inject_login)
 
     def inject_login(self):
@@ -139,18 +140,20 @@ class BotEngine(QMainWindow):
 
     def check_ready(self):
         self.browser_view.page().runJavaScript(
-            "document.getElementById('pct_balance') ? document.getElementById('pct_balance').value : null;",
-            self.verify_login
+                "document.getElementById('pct_balance').value", 
+                self.verify_login
         )
 
     def verify_login(self, val):
-        if val:
+        valuic = Decimal(val)
+        if valuic>0:
             self.log(f"✅ Logged in! Balance: {val}")
             self.setup_state(Decimal(val))
             self.last_activity_time = time.time()
             self.toggle_engine()
         else:
-            self.log("❌ Login failed or slow load. Click Inject again.")
+            self.log("❌ Login failed or slow load.")
+            QTimer.singleShot(2000, self.kjool_look)
 
     # ---------------------------------------------------------------------------
     # STATE & MATH
@@ -166,18 +169,20 @@ class BotEngine(QMainWindow):
             self.orgy = self.state_data.get("orgy", Decimal(0))
             self.fart = int(self.state_data.get("fart", 1))
             self.initial_balance = self.state_data.get("initial_balance", real_bal)
-            self.next_compound = self.state_data.get("next_compound", real_bal * Decimal("2.4"))
+            self.next_compound = self.state_data.get("next_compound", real_bal * Decimal("1.1"))
             
             last_saved = self.state_data.get("last_balance", real_bal)
             drift = real_bal - last_saved
             self.tracked_balance = self.state_data.get("tracked_balance", real_bal) + drift
+            self.shadow = 0
             self.log(f"⚖️ Drift Corrected: {drift:.8f}")
         else:
             self.log("🆕 Fresh Start.")
             self.cat = self.tabby
             self.fart = 1
+            self.shadow = 0
             self.tracked_balance = self.initial_balance = real_bal
-            self.next_compound = real_bal * Decimal("2.4")
+            self.next_compound = real_bal * Decimal("1.1")
             mighty = ((math.floor(real_bal / self.tens)) * self.tens)
             self.felix = self.orgy = mighty
 
@@ -248,6 +253,7 @@ class BotEngine(QMainWindow):
         # Start Timer
         self.last_change_time = time.time()
         self.last_activity_time = time.time()
+        self.betfired = True
         self.fire_bet()
         self.heartbeat.start()
 
@@ -262,12 +268,13 @@ class BotEngine(QMainWindow):
  
     def lol_poop(self):
         self.log("please wait for reconnect reloading browser dont worry will reconnect...")
+        self.betfired = False
         self.browser_view.reload()
         QTimer.singleShot(35000, self.devils_pooped)
     
     def devils_pooped(self):
         self.log("please wait for reconnect injecting login as why your login stays there dont worry will reconnect...")
-        self.inject_login()
+        self.kjool_look()
 
     def process_tick(self, bal_str):
         if not bal_str or not self.is_running: return
@@ -277,11 +284,11 @@ class BotEngine(QMainWindow):
 
         if time.time() - self.last_activity_time > 10:
             self.last_activity_time = time.time()
+            self.heartbeat.stop()
             self.lol_poop()
             
         # CASE 1: BALANCE CHANGED (Bet Processed)
-        if current_real != self.last_balance:
-            self.betfired = True
+        if current_real != self.shadow:
             self.last_change_time = time.time() # Reset Stuck Timer
             self.last_activity_time = time.time()
             
@@ -303,7 +310,7 @@ class BotEngine(QMainWindow):
             if self.tracked_balance >= self.next_compound:
                 self.log("💎 COMPOUND MILESTONE!")
                 self.calculate_units(self.tracked_balance)
-                self.next_compound = self.tracked_balance * Decimal("2.4")
+                self.next_compound = self.tracked_balance * Decimal("1.1")
                 self.cat = self.tabby
 
             # Strategy
@@ -324,6 +331,8 @@ class BotEngine(QMainWindow):
                  self.cat *= 2
                  self.felix = self.tracked_balance
             
+
+            self.shadow = self.tracked_balance
             # LOG & UI
             sess = self.tracked_balance - self.initial_balance
             self.log(f"💰 {current_real:.8f} | D: {delta:+.8f} | Session: {sess:+.8f}")
@@ -331,6 +340,7 @@ class BotEngine(QMainWindow):
             self.save_state()
             
             # NEXT BET
+            self.betfired = True
             self.fire_bet()
 
         # CASE 2: STUCK CHECK
