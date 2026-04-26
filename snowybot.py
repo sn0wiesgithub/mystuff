@@ -299,7 +299,7 @@ class BotEngine(QMainWindow):
             # CALL THE CHART HERE
 
             # Hacker Guard
-            if (((delta > self.cat)  or (delta < (0 - self.cat))) or ((delta<self.cat) and (delta>(0-self.cat))) and (delta is not 0)):
+            if (((delta > self.cat)  or (delta < (0 - self.cat))) or ((delta<self.cat) and (delta>(0-self.cat))) and (delta != 0)):
                 self.log(f"🚨 SECURITY: Delta {delta} > Bet {self.cat}")
                 self.heartbeat = False
                 jsout = f"""
