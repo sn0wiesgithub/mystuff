@@ -85,9 +85,8 @@ class BotEngine(QMainWindow):
         self.last_activity_time = time.time()
         
         # --- TIMERS ---
-        self.heartbeat = QTimer()
-        self.heartbeat.setInterval(1) # 1ms Tick
-        self.heartbeat.timeout.connect(self.tick)
+        self.heartbeat = False
+        self.gotcha = False
 
         self.log("System initialized. Loading Just-Dice...")
         self.browser_view.setUrl(QUrl(URL))
@@ -140,20 +139,22 @@ class BotEngine(QMainWindow):
 
     def check_ready(self):
         self.browser_view.page().runJavaScript(
-                "document.getElementById('pct_balance').value", 
-                self.verify_login
+            "document.getElementById('pct_balance') ? document.getElementById('pct_balance').value : null;",
+            self.verify_login
         )
 
     def verify_login(self, val):
-        valuic = Decimal(val)
-        if valuic>0:
+        if val:
             self.log(f"✅ Logged in! Balance: {val}")
             self.setup_state(Decimal(val))
             self.last_activity_time = time.time()
             self.toggle_engine()
         else:
             self.log("❌ Login failed or slow load.")
-            QTimer.singleShot(2000, self.kjool_look)
+            self.last_activity_time = time.time()
+            self.heartbeat = False
+            QTimer.singleShot(2000, self.lol_poop)
+      
 
     # ---------------------------------------------------------------------------
     # STATE & MATH
@@ -253,18 +254,22 @@ class BotEngine(QMainWindow):
         # Start Timer
         self.last_change_time = time.time()
         self.last_activity_time = time.time()
-        self.betfired = True
-        self.fire_bet()
-        self.heartbeat.start()
+        self.heartbeat = True
+        self.gotcha = True
+        self.tick()
 
     # ---------------------------------------------------------------------------
     # CORE LOOP WITH KICKSTART
     # ---------------------------------------------------------------------------
     def tick(self):
+      if self.heartbeat:
         self.browser_view.page().runJavaScript(
             "document.getElementById('pct_balance').value", 
             self.process_tick
         )
+        if self.gotcha:
+            self.gotcha = False
+            QTimer.singleShot(1, self.auto_bot)
  
     def lol_poop(self):
         self.log("please wait for reconnect reloading browser dont worry will reconnect...")
@@ -277,14 +282,11 @@ class BotEngine(QMainWindow):
         self.kjool_look()
 
     def process_tick(self, bal_str):
-        if not bal_str or not self.is_running: return
-        try:
-            current_real = Decimal(bal_str)
-        except: return
+        current_real = Decimal(bal_str)
 
         if time.time() - self.last_activity_time > 10:
             self.last_activity_time = time.time()
-            self.heartbeat.stop()
+            self.heartbeat = False
             self.lol_poop()
             
         # CASE 1: BALANCE CHANGED (Bet Processed)
@@ -297,21 +299,18 @@ class BotEngine(QMainWindow):
             # CALL THE CHART HERE
 
             # Hacker Guard
-            if abs(delta) > (self.cat * Decimal("1.01")):
+            if (((delta > self.cat)  or (delta < (0 - self.cat))) or ((delta<self.cat) and (delta>(0-self.cat))) and (delta is not 0)):
                 self.log(f"🚨 SECURITY: Delta {delta} > Bet {self.cat}")
-                self.heartbeat.stop()
+                self.heartbeat = False
+                jsout = f"""
+                document.getElementsByClassName("fleft chatinput typing")[0].value = "/logout"
+                document.getElementsByClassName("fleft chatbutton")[0].click()
+                """
+                self.browser_view.page().runJavaScript(jsout)
                 sys.exit()
-                return
 
             self.tracked_balance += delta
             self.last_balance = current_real
-            
-            # Compounding
-            if self.tracked_balance >= self.next_compound:
-                self.log("💎 COMPOUND MILESTONE!")
-                self.calculate_units(self.tracked_balance)
-                self.next_compound = self.tracked_balance * Decimal("1.1")
-                self.cat = self.tabby
 
             # Strategy
             mighty = ((math.floor(self.tracked_balance / self.tens)) * self.tens)
@@ -331,6 +330,15 @@ class BotEngine(QMainWindow):
                  self.cat *= 2
                  self.felix = self.tracked_balance
             
+            # Compounding
+            if self.tracked_balance >= self.next_compound:
+                self.log("💎 COMPOUND MILESTONE!")
+                self.calculate_units(self.tracked_balance)
+                self.next_compound = self.tracked_balance * Decimal("1.1")
+                self.cat = self.tabby
+                self.felix = mighty
+                self.orgy = mighty
+                self.fart = 1
 
             self.shadow = self.tracked_balance
             # LOG & UI
@@ -349,10 +357,11 @@ class BotEngine(QMainWindow):
             if time.time() - self.last_change_time > 0.01:
                 self.fire_bet()
                 self.last_change_time = time.time() 
-
+      
                 
     def fire_bet(self):
-      if self.betfired:
+     if self.heartbeat:
+       if self.betfired:
         js = f"""
         var chance = document.getElementById('pct_chance');
         var bet = document.getElementById('pct_bet');
@@ -363,6 +372,11 @@ class BotEngine(QMainWindow):
         """
         self.browser_view.page().runJavaScript(js)
         self.betfired = False
+
+    def auto_bot(self):
+      if self.heartbeat:
+        self.tick()
+        QTimer.singleShot(1, self.auto_bot)
 
     def update_ui_stats(self):
         self.lbl_balance.setText(f"Bal: {self.last_balance:.8f}")
