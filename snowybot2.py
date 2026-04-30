@@ -165,9 +165,10 @@ class BotEngine(QMainWindow):
         
         if self.state_data:
             self.log("📂 Resuming from file...")
+            mighty = ((math.floor(real_bal / self.tens)) * self.tens)
             self.cat = self.state_data.get("cat", self.tabby)
-            self.felix = self.state_data.get("felix", Decimal(0))
-            self.orgy = self.state_data.get("orgy", Decimal(0))
+            self.felix = self.state_data.get("felix", mighty)
+            self.orgy = self.state_data.get("orgy", mighty)
             self.fart = int(self.state_data.get("fart", 1))
             self.initial_balance = self.state_data.get("initial_balance", real_bal)
             self.next_compound = self.state_data.get("next_compound", real_bal * Decimal("1.1"))
@@ -215,7 +216,7 @@ class BotEngine(QMainWindow):
 
     def calculate_units(self, balance):
         if balance == 0: return
-        self.tabby = (balance / Decimal("1440000")).quantize(Decimal("1.00000000"))
+        self.tabby = (balance / Decimal("144000")).quantize(Decimal("1.00000000"))
         self.tens = (self.tabby * Decimal("10.0"))
         self.sevens = (self.tabby * Decimal("6.9"))
         self.eights = (self.tabby * Decimal("7.9"))
@@ -304,12 +305,6 @@ class BotEngine(QMainWindow):
             if (((delta > self.cat)  or (delta < (0 - self.cat))) or ((delta<self.cat) and (delta>(0-self.cat))) and (delta != 0)):
                 self.log(f"🚨 SECURITY: Delta {delta} > Bet {self.cat}")
                 self.heartbeat = False
-                jsout = f"""
-                document.getElementsByClassName("fleft chatinput typing")[0].value = "/logout"
-                document.getElementsByClassName("fleft chatbutton")[0].click()
-                """
-                self.browser_view.page().runJavaScript(jsout)
-                sys.exit()
 
             self.tracked_balance += delta
             self.last_balance = current_real
@@ -322,33 +317,26 @@ class BotEngine(QMainWindow):
                 self.fart = 1
                 self.uppers = Decimal("6.9")
                 self.downers = Decimal("2.9")
-                self.felix = mighty
-                self.orgy = mighty
+                self.felix = Decimal(float(mighty))
+                self.orgy = Decimal(float(mighty))
 
-            if ((self.tracked_balance > (self.felix + (self.cat*self.uppers))) and (self.tracked_balance < (self.felix + (self.cat*(self.uppers+(Decimal("1.0"))))))):
+            if ((self.tracked_balance > (self.felix + (self.cat*self.uppers))) and (self.tracked_balance < (self.felix + (self.cat*(self.uppers+(Decimal("1.1"))))))):
+                 self.cat *= 2
+                 self.uppers = Decimal("4.9")
+                 self.downers = Decimal("4.9")
+                 self.felix = Decimal(float(self.tracked_balance))
+
+            if ((self.tracked_balance < (self.felix - (self.cat*self.downers))) and (self.tracked_balance > (self.felix - (self.cat*(self.downers+(Decimal("1.1"))))))):
                  self.fart = 0
                  self.cat *= 2
                  self.uppers = Decimal("4.9")
                  self.downers = Decimal("4.9")
-                 self.felix = self.tracked_balance
-
-            if ((self.tracked_balance < (self.felix - (self.cat*self.downers))) and (self.tracked_balance > (self.felix - (self.cat*(self.downers+(Decimal("1.0"))))))):
-                 self.fart = 0
-                 self.cat *= 2
-                 self.uppers = Decimal("4.9")
-                 self.downers = Decimal("4.9")
-                 self.felix = self.tracked_balance
+                 self.felix = Decimal(float(self.tracked_balance))
             
 
-            if ((self.tracked_balance<(self.felix-(self.cat*(Decimal("10.0"))))) or (self.tracked_balance>(self.felix+(self.cat*(Decimal("10.0")))))):
+            if ((self.tracked_balance<(self.felix-(self.cat*(self.downers+(Decimal("1.1")))))) or (self.tracked_balance >= (self.felix + (self.cat*(Decimal("10.0"))))) or ((self.cat>self.tabby) and (self.tracked_balance < (self.orgy + (self.tens * self.fart))) and (self.tracked_balance > (self.felix + (self.cat*(self.uppers+(Decimal("1.1")))))))):           
                 self.log(f"🚨 SECURITY: Felix {self.felix} Bet {self.cat}")
                 self.heartbeat = False
-                jsout = f"""
-                document.getElementsByClassName("fleft chatinput typing")[0].value = "/logout"
-                document.getElementsByClassName("fleft chatbutton")[0].click()
-                """
-                self.browser_view.page().runJavaScript(jsout)
-                sys.exit()
             
             # Compounding
             if self.tracked_balance >= self.next_compound:
