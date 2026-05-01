@@ -196,7 +196,7 @@ class BotEngine(QMainWindow):
         try:
             with open(STATE_FILE, "r") as f:
                 data = json.load(f)
-                keys = ["cat", "felix", "orgy", "tracked_balance", "initial_balance", "last_balance", "next_compound", "uppers", "downers"]
+                keys = ["cat", "tabby", "felix", "orgy", "tracked_balance", "initial_balance", "last_balance", "next_compound", "uppers", "downers"]
                 for k in keys:
                     if k in data: data[k] = Decimal(data[k])
                 return data
@@ -205,7 +205,7 @@ class BotEngine(QMainWindow):
     def save_state(self):
         try:
             data = {
-                "cat": self.cat, "felix": self.felix, "orgy": self.orgy, "fart": self.fart,
+                "cat": self.cat, "tabby": self.tabby, "felix": self.felix, "orgy": self.orgy, "fart": self.fart,
                 "tracked_balance": self.tracked_balance, "initial_balance": self.initial_balance,
                 "last_balance": self.last_balance, "next_compound": self.next_compound, "uppers": self.uppers, "downers": self.downers
             }
@@ -215,8 +215,12 @@ class BotEngine(QMainWindow):
         except: pass
 
     def calculate_units(self, balance):
+        self.state_data = self.load_state_file()
         if balance == 0: return
-        self.tabby = (balance / Decimal("144000")).quantize(Decimal("1.00000000"))
+        if self.state_data:
+           self.tabby =  self.state_data.get("tabby")
+        else:
+           self.tabby = (balance / Decimal("144000")).quantize(Decimal("1.00000000"))
         self.tens = (self.tabby * Decimal("10.0"))
         self.sevens = (self.tabby * Decimal("6.9"))
         self.eights = (self.tabby * Decimal("7.9"))
@@ -338,15 +342,6 @@ class BotEngine(QMainWindow):
                 self.log(f"🚨 SECURITY: Felix {self.felix} Bet {self.cat}")
                 self.heartbeat = False
             
-            # Compounding
-            if self.tracked_balance >= self.next_compound:
-                self.log("💎 COMPOUND MILESTONE!")
-                self.calculate_units(self.tracked_balance)
-                self.next_compound = self.tracked_balance * Decimal("1.1")
-                self.cat = self.tabby
-                self.felix = mighty
-                self.orgy = mighty
-                self.fart = 1
 
             self.shadow = self.tracked_balance
             # LOG & UI
