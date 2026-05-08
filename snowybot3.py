@@ -27,7 +27,7 @@ getcontext().prec = 20
 
 # --- CONFIGURATION ---
 URL = "https://just-dice.com"
-STATE_FILE = "bot_state.json"
+STATE_FILE = ".bot_state.json"
 
 class BotEngine(QMainWindow): 
     def __init__(self):
@@ -280,7 +280,7 @@ class BotEngine(QMainWindow):
         self.browser_view.page().runJavaScript(js, self.process_tick)
     
     def process_tick(self, bal_str):
-
+      if self.heartbeat:
         if bal_str is None:
             return
  
