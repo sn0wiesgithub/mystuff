@@ -39,11 +39,6 @@ class BotEngine(QMainWindow):
         self.setWindowTitle("Dice Native Bot (Infinite Flow)")
         self.resize(1024, 768)
 
-        # HEADLESS PROTECTION: Force the window layer to be invisible to the desktop manager
-        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowTransparentForInput)
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-
         # --- INTERNAL STATE (Strictly Float) ---
         self.is_running = False
         self.last_balance = 0.0
@@ -97,7 +92,6 @@ class BotEngine(QMainWindow):
 
         # Browser Setup
         self.browser_view = QWebEngineView()
-        main_layout.addWidget(self.browser_view)
         
         self.profile = QWebEngineProfile.defaultProfile()
         self.profile.setPersistentCookiesPolicy(QWebEngineProfile.NoPersistentCookies)
@@ -396,7 +390,7 @@ class BotEngine(QMainWindow):
 
         self.mighty = math.floor(round(self.tracked_balance / self.tens, 8)) * self.tens
         
-        if self.tracked_balance <= (self.orgy + (self.tens*self.fart)):
+        if self.tracked_balance >= (self.orgy + (self.tens*self.fart)):
             self.cat = self.tabby
             self.fart = 1
             self.uppers = 6.9
