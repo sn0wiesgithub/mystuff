@@ -396,7 +396,7 @@ class BotEngine(QMainWindow):
 
         self.mighty = math.floor(round(self.tracked_balance / self.tens, 8)) * self.tens
         
-        if self.tracked_balance <= (self.orgy + (self.tens*self.fart)):
+        if self.tracked_balance >= (self.orgy + (self.tens*self.fart)):
             self.cat = self.tabby
             self.fart = 1
             self.uppers = 6.9
